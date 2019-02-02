@@ -56,7 +56,6 @@ int read_LCD_buttons(){               // read the buttons
     return btnNONE;                // when all others fail, return this.
 }
 
-uint32_t wait_until = millis() + 1000;
 
 void setup(){
    lcd.begin(16, 2);               // start the library
@@ -66,42 +65,37 @@ void setup(){
 }
  
 void loop(){
-   if (wait_until < millis()) {
-     wait_until = millis() + 1000;
-     digitalWrite(45,!digitalRead(45));
-     lcd.setCursor(9,1);             // move cursor to second line "1" and 9 spaces over
-     lcd.print(millis()/1000);       // display seconds elapsed since power-up
+   lcd.setCursor(9,1);             // move cursor to second line "1" and 9 spaces over
+   lcd.print(millis());       // display seconds elapsed since power-up
 
-     lcd.setCursor(0,1);             // move to the begining of the second line
-     lcd_key = read_LCD_buttons();   // read the buttons
+   lcd.setCursor(0,1);             // move to the begining of the second line
+   lcd_key = read_LCD_buttons();   // read the buttons
 
-     switch (lcd_key){               // depending on which button was pushed, we perform an action
+   switch (lcd_key){               // depending on which button was pushed, we perform an action
 
-         case btnRIGHT:{             //  push button "RIGHT" and show the word on the screen
-              lcd.print("RIGHT ");
-              break;
-         }
-         case btnLEFT:{
-               lcd.print("LEFT   "); //  push button "LEFT" and show the word on the screen
-               break;
-         }    
-         case btnUP:{
-               lcd.print("UP    ");  //  push button "UP" and show the word on the screen
-               break;
-         }
-         case btnDOWN:{
-               lcd.print("DOWN  ");  //  push button "DOWN" and show the word on the screen
-               break;
-         }
-         case btnSELECT:{
-               lcd.print("SELECT");  //  push button "SELECT" and show the word on the screen
-               break;
-         }
-         case btnNONE:{
-               lcd.print("NONE  ");  //  No action  will show "None" on the screen
-               break;
-         }
-     }
-     
+       case btnRIGHT:{             //  push button "RIGHT" and show the word on the screen
+            lcd.print("RIGHT ");
+            break;
+       }
+       case btnLEFT:{
+             lcd.print("LEFT   "); //  push button "LEFT" and show the word on the screen
+             break;
+       }    
+       case btnUP:{
+             lcd.print("UP    ");  //  push button "UP" and show the word on the screen
+             break;
+       }
+       case btnDOWN:{
+             lcd.print("DOWN  ");  //  push button "DOWN" and show the word on the screen
+             break;
+       }
+       case btnSELECT:{
+             lcd.print("SELECT");  //  push button "SELECT" and show the word on the screen
+             break;
+       }
+       case btnNONE:{
+             lcd.print("NONE  ");  //  No action  will show "None" on the screen
+             break;
+       }
    }
 }
