@@ -32,7 +32,7 @@
 #define HCTL_2032_CLK     15
 #define HCTL_2032_RSTX    16
 #define HCTL_2032_RSTY    17
-#define HCTL_2032_XY       8
+#define HCTL_2032_XY      18
 #define HCTL_2032_DATA_PORT  PORTD
 
 #define ENABLE_OUTPUT  digitalWrite(HCTL_2032_OE, LOW)
@@ -112,9 +112,9 @@ int8_t temp_byte;
 void setup(){
   lcd.begin(16, 2);               // start the library
   lcd.setCursor(0,0);             // set the LCD cursor   position 
-  lcd.print("Axis A:");    
+  lcd.print("Axis L:");    
   lcd.setCursor(0,1);             // set the LCD cursor   position 
-  lcd.print("Axis B:");    
+  lcd.print("Axis R:");    
    
   pinMode(HCTL_2032_D0 ,INPUT);
   pinMode(HCTL_2032_D1 ,INPUT);
