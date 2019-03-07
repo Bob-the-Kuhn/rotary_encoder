@@ -1,0 +1,698 @@
+/*************************************************************************************
+
+  Mark Bramwell, July 2010
+
+  This program will test the LCD panel and the buttons.When you push the button on the shield，
+  the screen will show the corresponding one.
+ 
+  Connection: Plug the LCD Keypad to the UNO(or other controllers)
+
+**************************************************************************************/
+
+#include <Arduino.h>
+#include <LiquidCrystal.h>
+
+
+//
+// HCTL-2032
+//
+
+#define HCTL_2032_D0       0 // port D bit 0 
+#define HCTL_2032_D1       1 // port D bit 1
+#define HCTL_2032_D2       2 // port D bit 2
+#define HCTL_2032_D3       3 // port D bit 3
+#define HCTL_2032_D4       4 // port D bit 4
+#define HCTL_2032_D5       5 // port D bit 5
+#define HCTL_2032_D6       6 // port D bit 6
+#define HCTL_2032_D7       7 // port D bit 7
+#define HCTL_2032_SEL1    10 // port C bit 0
+#define HCTL_2032_SEL2    11 // port C bit 1
+
+//#define HCTL_2032_SEL1    11 // port C bit 0
+//#define HCTL_2032_SEL2    10 // port C bit 1
+
+#define HCTL_2032_EN1     12 // port C bit 2
+#define HCTL_2032_EN2     13 // port C bit 3
+#define HCTL_2032_OE      14 // port C bit 4
+#define HCTL_2032_CLK     15 // port C bit 5
+#define HCTL_2032_RSTX    16 // port C bit 6
+#define HCTL_2032_RSTY    17 // port C bit 7
+#define HCTL_2032_XY      18//17//18 // port E bit 6
+#define HCTL_2032_DATA_PORT  PORTD
+
+#define ENABLE_OUTPUT  digitalWrite(HCTL_2032_OE, LOW)
+#define DISABLE_OUTPUT digitalWrite(HCTL_2032_OE, HIGH)
+
+//#define ADD_BYTE_AXIS_A do {digitalWrite(HCTL_2032_CLK, LOW); count_axis_A = (count_axis_A << 8) + HCTL_2032_DATA_PORT; digitalWrite(HCTL_2032_CLK, HIGH);} while(0)
+//#define ADD_BYTE_AXIS_B do {digitalWrite(HCTL_2032_CLK, LOW); count_axis_B = (count_axis_B << 8) + HCTL_2032_DATA_PORT; digitalWrite(HCTL_2032_CLK, HIGH);} while(0)
+
+#define ADD_BYTE_AXIS_A do {count_axis_A = ((count_axis_A << 8) & 0xFFFFFF00ll) | (read_byte()  & 0x000000FFll);} while(0)
+#define ADD_BYTE_AXIS_B do {count_axis_B = ((count_axis_B << 8) & 0xFFFFFF00ll) | (read_byte()  & 0x000000FFll);} while(0)
+
+//#define ADD_BYTE_AXIS_A do { temp_byte = read_byte(); } while(0)
+//#define ADD_BYTE_AXIS_B do { temp_byte = read_byte(); } while(0)
+
+
+//#define SELECT_BYTE_0_MSB  do {digitalWrite(HCTL_2032_SEL1, LOW);  digitalWrite(HCTL_2032_SEL2, HIGH);} while (0)
+//#define SELECT_BYTE_1      do {digitalWrite(HCTL_2032_SEL1, HIGH); digitalWrite(HCTL_2032_SEL2, HIGH);} while (0)
+//#define SELECT_BYTE_2      do {digitalWrite(HCTL_2032_SEL1, LOW);  digitalWrite(HCTL_2032_SEL2, LOW) ;} while (0)
+//#define SELECT_BYTE_3_LSB  do {digitalWrite(HCTL_2032_SEL1, HIGH); digitalWrite(HCTL_2032_SEL2, LOW) ;} while (0)
+
+#define SELECT_BYTE_0_MSB  do {digitalWrite(HCTL_2032_SEL1, LOW);  digitalWrite(HCTL_2032_SEL2, HIGH);} while (0)
+#define SELECT_BYTE_1      do {digitalWrite(HCTL_2032_SEL1, HIGH); digitalWrite(HCTL_2032_SEL2, HIGH);} while (0)
+#define SELECT_BYTE_2      do {digitalWrite(HCTL_2032_SEL1, LOW);  digitalWrite(HCTL_2032_SEL2, LOW) ;} while (0)
+#define SELECT_BYTE_3_LSB  do {digitalWrite(HCTL_2032_SEL1, HIGH); digitalWrite(HCTL_2032_SEL2, LOW) ;} while (0)
+
+
+
+
+#define SELECT_AXIS_A digitalWrite(HCTL_2032_XY, LOW)
+#define SELECT_AXIS_B digitalWrite(HCTL_2032_XY, HIGH)
+
+//
+// LCD
+//
+
+#define LCD_RE       43
+#define LCD_ENABLE   44
+#define LCD_D4       39
+#define LCD_D5       40
+#define LCD_D6       41
+#define LCD_D7       42
+
+//
+// test pins
+//
+//#define phase_a   24  // PB4
+//#define phase_b   25  // PB5
+
+//#define phase_a   20  // PB0
+//#define phase_b   21  // PB1
+//#define LED        6  // PD6
+
+LiquidCrystal lcd(LCD_RE, LCD_ENABLE, LCD_D4, LCD_D5, LCD_D6, LCD_D7);           // select the pins used on the LCD panel
+
+
+
+// define some values used by the panel and buttons
+int lcd_key     = 0;
+int adc_key_in  = 0;
+
+#define btnRIGHT  0
+#define btnUP     1
+#define btnDOWN   2
+#define btnLEFT   3
+#define btnSELECT 4
+#define btnNONE   5
+
+int read_LCD_buttons(){               // read the buttons
+    adc_key_in = analogRead(0);       // read the value from the sensor 
+
+    // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
+    // we add approx 50 to those values and check to see if we are close
+    // We make this the 1st option for speed reasons since it will be the most likely result
+
+    if (adc_key_in > 1000) return btnNONE; 
+
+    // For V1.1 us this threshold
+    if (adc_key_in < 50)   return btnRIGHT;  
+    if (adc_key_in < 250)  return btnUP; 
+    if (adc_key_in < 450)  return btnDOWN; 
+    if (adc_key_in < 650)  return btnLEFT; 
+    if (adc_key_in < 850)  return btnSELECT;  
+
+   // For V1.0 comment the other threshold and use the one below:
+   /*
+     if (adc_key_in < 50)   return btnRIGHT;  
+     if (adc_key_in < 195)  return btnUP; 
+     if (adc_key_in < 380)  return btnDOWN; 
+     if (adc_key_in < 555)  return btnLEFT; 
+     if (adc_key_in < 790)  return btnSELECT;   
+   */
+
+    return btnNONE;                // when all others fail, return this.
+}
+
+/**
+ * EEPROM
+ *
+ * stores axis labels
+ *  0 - 0xAA  (security byte)
+ *  1 - 0x55  (security byte)
+ *  2 - index
+ *  3-5 - ascii codesd to display at beginning of top line
+ *  6-8 - ascii codesd to display at beginning of boottom line
+ */
+
+#include <EEPROM.h>
+
+uint8_t cSREG;
+
+void EEPROM_write_start() {
+  cSREG = SREG; /* store SREG value */
+  /* disable interrupts during timed sequence */
+  //__disable_interrupt();
+}
+  
+void EEPROM_write_finish() {  
+  SREG = cSREG; /* restore SREG value (I-bit) */
+}
+
+void EEPROM_write(uint16_t uiAddress, uint8_t ucData) {
+  /* Wait for completion of previous write */
+  while(EECR & (1<<EEPE))
+  ;
+  /* Set up address and Data Registers */
+  EEAR = uiAddress;
+  EEDR = ucData;
+  uint8_t EEMPE_val = (EECR & 0xC0) | 1<<EEMPE;
+//  uint8_t EEPE_val  = (EECR & 0xC0) | 1<<EEPE;
+  uint8_t EEPE_val  = EEMPE_val | 1<<EEPE;
+  /* Write logical one to EEMPE */
+  EECR |= (1<<EEMPE);
+//  EECR = EEMPE_val;
+  /* Start eeprom write by setting EEPE */
+  EECR |= (1<<EEPE);
+//  EECR = EEPE_val;
+}
+
+uint8_t EEPROM_read(uint16_t uiAddress) {
+  /* Wait for completion of previous write */
+  while(EECR & (1<<EEPE))
+  ;
+  /* Set up address register */
+  EEAR = uiAddress;
+  /* Start eeprom read by writing EERE */
+  EECR |= (1<<EERE);
+  /* Return data from Data Register */
+  return EEDR;
+}
+
+void next_AXIS_codes() {
+//  uint8_t temp;
+//  uint8_t temp_MS;
+//  uint8_t temp_LS;
+//  for (uint8_t i = 0; i <= 3; i++) { // print first 4 bytes on top line
+////    temp = EEPROM_read(i);
+//temp = EEPROM.read(i);
+//    temp_MS = (temp >> 4) & 0x0F;
+//    temp_LS = temp & 0x0F;
+//    lcd.setCursor(i*3,0);
+//    lcd.print((char)(temp_MS + (temp_MS < 10 ? 0x30 : 55)));
+//    lcd.setCursor(i*3 + 1,0);
+//    lcd.print((char)(temp_LS + (temp_LS < 10 ? 0x30 : 55)));
+//    lcd.setCursor(i*3 + 2,0);
+//    lcd.print(' ');
+//  }
+ // for (uint8_t i = 0; i <= 4; i++) { // print last 5 bytes on bottom line
+ //   temp = EEPROM_read(i + 4);
+// temp = EEPROM.read(i + 4);
+//    temp_MS = (temp >> 4) & 0x0F;
+//    temp_LS = temp & 0x0F;
+//    lcd.setCursor((i)*3,1);
+//    lcd.print((char)(temp_MS + (temp_MS < 10 ? 0x30 : 55)));
+//    lcd.setCursor(i*3 + 1,1);
+//    lcd.print((char)(temp_LS + (temp_LS < 10 ? 0x30 : 55)));
+//    lcd.setCursor(i*3 + 2,1);
+//    lcd.print(' ');
+//  }
+  
+  uint8_t index = 0;
+//  if ((EEPROM_read(0) == 0xAA) && (EEPROM_read(1) == 0x55)) { 
+ if ((EEPROM.read(0) == 0xAA) && (EEPROM.read(1) == 0x55)) { 
+    index = EEPROM_read(2) + 1 ;
+    if (index > 2) index = 0;
+  }
+ 
+//lcd.setCursor(6,1);
+//lcd.print(EEPROM_read(0));
+//lcd.setCursor(10 ,1);
+//lcd.print(EEPROM_read(1));
+//lcd.setCursor(14,1);
+//lcd.print(EEPROM_read(2));
+// 
+//  index = EEPROM_read(2) + 1 ;
+//  if (index > 2) index = 0;
+  
+//  EEPROM_write_start();            // write axis codes to EEPROM
+//  EEPROM_write(0xAA, 0);
+//  EEPROM_write(0x55, 1);
+//  EEPROM_write(index, 2);
+//  switch(index) {
+//    case 0: {
+//      EEPROM_write('X', 3);
+//      EEPROM_write(' ', 4);
+//      EEPROM_write(':', 5);
+//      EEPROM_write('E', 6);
+//      EEPROM_write('0', 7);
+//      EEPROM_write(':', 8);
+//    }
+//    case 1: {
+//      EEPROM_write('Y', 3);
+//      EEPROM_write(' ', 4);
+//      EEPROM_write(':', 5);
+//      EEPROM_write('Y', 6);
+//      EEPROM_write('2', 7);
+//      EEPROM_write(':', 8);
+//    }
+//    case 2: {
+//      EEPROM_write('Z', 3);
+//      EEPROM_write(' ', 4);
+//      EEPROM_write(':', 5);
+//      EEPROM_write('Z', 6);
+//      EEPROM_write('2', 7);
+//      EEPROM_write(':', 8);
+//    }
+    
+    
+
+  EEPROM.write(0, 0xAA);
+  EEPROM.write(1, 0x55);
+  EEPROM.write(2, index);
+  switch(index) {
+    case 0: {
+      EEPROM.write( 3, 'X');
+      EEPROM.write( 4, ' ');
+      EEPROM.write( 5, ':');
+      EEPROM.write( 6, 'E');
+      EEPROM.write( 7, '0');
+      EEPROM.write( 8, ':');
+      break;
+    }                 
+    case 1: {         
+      EEPROM.write( 3, 'Y');
+      EEPROM.write( 4, ' ');
+      EEPROM.write( 5, ':');
+      EEPROM.write( 6, 'Y');
+      EEPROM.write( 7, '2');
+      EEPROM.write( 8, ':');
+      break;
+    }                 
+    case 2: {         
+      EEPROM.write( 3, 'Z');
+      EEPROM.write( 4, ' ');
+      EEPROM.write( 5, ':');
+      EEPROM.write( 6, 'Z');
+      EEPROM.write( 7, '2');
+      EEPROM.write( 8, ':');
+      break;
+    }
+  
+
+    
+  }
+//  EEPROM_write_finish();
+
+  for (uint8_t i = 0; i < 3; i++) {
+    lcd.setCursor(i,0);
+    lcd.print((char)EEPROM.read(i + 3));
+  }
+  for (uint8_t i = 0; i < 3; i++) {
+    lcd.setCursor(i,1);
+    lcd.print((char)EEPROM.read(i + 6));
+  }  
+  
+//  for (uint8_t i = 0; i < 4; i++) {          // write axis labels to LCD
+//    lcd.setCursor(i,0);
+//    lcd.print((char)EEPROM_read(i + 3));
+//  }
+//  for (uint8_t i = 0; i < 4; i++) {
+//    lcd.setCursor(i,1);
+//    lcd.print((char)EEPROM_read(i + 7));
+//  }  
+
+}  
+
+//int8_t read_byte() {
+//  int8_t data = 0;
+//  data |= digitalRead(HCTL_2032_D0) << 7  ;
+//  data |= digitalRead(HCTL_2032_D1) << 6  ;
+//  data |= digitalRead(HCTL_2032_D2) << 5  ;
+//  data |= digitalRead(HCTL_2032_D3) << 4  ;
+//  data |= digitalRead(HCTL_2032_D4) << 3  ;
+//  data |= digitalRead(HCTL_2032_D5) << 2  ;
+//  data |= digitalRead(HCTL_2032_D6) << 1  ;
+//  data |= digitalRead(HCTL_2032_D7)       ;
+//  return data;
+//}
+
+
+//void delay_read(uint8_t count) {
+//  for(uint8_t i = 0; i <= count; i++)
+//    digitalWrite(HCTL_2032_CLK, LOW);
+//}
+
+void reset_axis_A() {
+  digitalWrite(HCTL_2032_RSTX ,LOW );   // axis A counter to zero
+  digitalWrite(HCTL_2032_RSTX ,HIGH);   // allow axis A counter to run
+  lcd.setCursor(4,0);                   // move cursor to top line and 9 spaces over
+  lcd.print("           ");             // clear display
+}
+  
+void reset_axis_B() {  
+  digitalWrite(HCTL_2032_RSTY ,LOW );   // axis B counter to zero
+  digitalWrite(HCTL_2032_RSTY ,HIGH);   // allow axis B counter to run
+  lcd.setCursor(4,1);                   // move cursor to top line and 9 spaces over
+  lcd.print("           ");             // clear display
+
+}
+
+
+int8_t read_byte() {
+  int8_t data = 0;
+  data |= digitalRead(HCTL_2032_D0)       ;
+  data |= digitalRead(HCTL_2032_D1) << 3  ;
+  data |= digitalRead(HCTL_2032_D2) << 2  ;
+  data |= digitalRead(HCTL_2032_D3) << 1  ;
+  data |= digitalRead(HCTL_2032_D4) << 4  ;
+  data |= digitalRead(HCTL_2032_D5) << 5  ;
+  data |= digitalRead(HCTL_2032_D6) << 6  ;
+  data |= digitalRead(HCTL_2032_D7) << 7  ;
+  return data;
+}
+
+
+
+int32_t count_axis_A;
+int32_t count_axis_B;
+int32_t count_axis_A_prev = 0;
+int32_t count_axis_B_prev = 0; 
+uint16_t debounce_counter = 0;
+
+
+
+void setup(){
+  lcd.begin(16, 2);               // start the library
+  
+//  EEPROM.write(0,'A');
+//  lcd.setCursor(0,0);
+//  lcd.print((char)EEPROM.read(0));
+//  
+//  EEPROM.write(1,'B');
+//  lcd.setCursor(5,0);
+//  lcd.print((char)EEPROM.read(1));
+//  
+//  temp_byte = EEPROM.read(2) + 1;
+//  
+//  EEPROM.write(2,temp_byte);
+//  lcd.setCursor(9,0);
+//  lcd.print((char)EEPROM.read(2));
+  
+
+  
+//  if ((EEPROM_read(0) == 0xAA) && (EEPROM_read(1) == 0x55)) {  // get axis codes
+//    for (uint8_t i = 0; i < 4; i++) {
+//      lcd.setCursor(i,0);
+//      lcd.print((char)EEPROM_read(i + 3));
+//    }
+//    for (uint8_t i = 0; i < 4; i++) {
+//      lcd.setCursor(i,1);
+//      lcd.print((char)EEPROM_read(i + 7));
+//    }  
+//  }
+//  else 
+//    next_AXIS_codes();                                        // if invalid then get first set
+
+if ((EEPROM.read(0) == 0xAA) && (EEPROM.read(1) == 0x55)) {  // get axis codes
+    for (uint8_t i = 0; i < 3; i++) {
+      lcd.setCursor(i,0);
+      lcd.print((char)EEPROM.read(i + 3));
+    }
+    for (uint8_t i = 0; i < 3; i++) {
+      lcd.setCursor(i,1);
+      lcd.print((char)EEPROM.read(i + 6));
+    }  
+  }
+  else 
+    next_AXIS_codes();                                        // if invalid then get first set
+  
+//  lcd.setCursor(0,0);             // set the LCD cursor   position 
+//  lcd.print("L:              ");  // init top row  
+//  lcd.setCursor(0,1);             // set the LCD cursor   position 
+//  lcd.print("R:              ");  // init bottom row    
+   
+  pinMode(HCTL_2032_D0 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D1 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D2 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D3 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D4 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D5 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D6 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_D7 ,INPUT_PULLUP);
+  pinMode(HCTL_2032_SEL1,OUTPUT);
+  pinMode(HCTL_2032_SEL2,OUTPUT);
+  pinMode(HCTL_2032_EN1 ,OUTPUT);
+  pinMode(HCTL_2032_EN2 ,OUTPUT);
+  pinMode(HCTL_2032_OE  ,OUTPUT);
+  pinMode(HCTL_2032_CLK ,OUTPUT);
+  pinMode(HCTL_2032_RSTX,OUTPUT);
+  pinMode(HCTL_2032_RSTY,OUTPUT);
+  pinMode(HCTL_2032_XY  ,OUTPUT);
+  
+  digitalWrite(HCTL_2032_SEL1 ,HIGH);   // don't care
+  digitalWrite(HCTL_2032_SEL2 ,HIGH);   // don't care
+  digitalWrite(HCTL_2032_EN1  ,HIGH);   // count mode: 1x
+  digitalWrite(HCTL_2032_EN2  ,HIGH);   // count mode: 1x
+  digitalWrite(HCTL_2032_OE   ,HIGH);   // allow data to be latched
+  digitalWrite(HCTL_2032_CLK  ,HIGH);   // don't care
+  digitalWrite(HCTL_2032_RSTX ,LOW );   // axis A counter to zero
+  digitalWrite(HCTL_2032_RSTX ,HIGH);   // allow axis A counter to run
+  digitalWrite(HCTL_2032_RSTY ,LOW );   // axis B counter to zero
+  digitalWrite(HCTL_2032_RSTY ,HIGH);   // allow axis B counter to run
+  digitalWrite(HCTL_2032_XY ,HIGH);   // don't care
+   
+}//
+ 
+void loop(){
+  
+  if (debounce_counter) debounce_counter--;
+  
+  // get counters
+ 
+  ENABLE_OUTPUT;  //freezes latches
+  
+  SELECT_AXIS_A;
+  count_axis_A = 0;
+  SELECT_BYTE_0_MSB;
+  ADD_BYTE_AXIS_A;
+//  lcd.setCursor(7,0);     
+//  lcd.print(temp_byte);  
+  SELECT_BYTE_1;
+  ADD_BYTE_AXIS_A; 
+//  lcd.setCursor(12,0);     
+//  lcd.print(temp_byte);  
+//  lcd.setCursor(7,0);
+//  if (temp_byte & 0b10000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(8,0);
+//  if (temp_byte & 0b01000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(9,0);
+//  if (temp_byte & 0b00100000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(10,0);
+//  if (temp_byte & 0b00010000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(12,0);
+//  if (temp_byte & 0b00001000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(13,0);
+//  if (temp_byte & 0b00000100) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(14,0);
+//  if (temp_byte & 0b00000010) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(15,0);
+//  if (temp_byte & 0b00000001) lcd.print("1");
+//    else lcd.print("0");
+  SELECT_BYTE_2;
+  ADD_BYTE_AXIS_A;
+//  lcd.setCursor(7,1);     
+//  lcd.print(temp_byte); 
+  
+  SELECT_BYTE_3_LSB;
+  ADD_BYTE_AXIS_A;
+//  lcd.setCursor(12,1);     
+//  lcd.print(temp_byte);   
+//  lcd.setCursor(7,1);
+//  if (temp_byte & 0b10000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(8,1);
+//  if (temp_byte & 0b01000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(9,1);
+//  if (temp_byte & 0b00100000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(10,1);
+//  if (temp_byte & 0b00010000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(12,1);
+//  if (temp_byte & 0b00001000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(13,1);
+//  if (temp_byte & 0b00000100) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(14,1);
+//  if (temp_byte & 0b00000010) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(15,1);
+//  if (temp_byte & 0b00000001) lcd.print("1");
+//    else lcd.print("0");
+  
+  SELECT_AXIS_B;
+  count_axis_B = 0;
+  
+//  lcd.setCursor(7,0);     
+//  lcd.print("         ");  
+//  lcd.setCursor(7,1);     
+//  lcd.print("         ");   
+  
+  SELECT_BYTE_0_MSB;
+  ADD_BYTE_AXIS_B;
+ // lcd.setCursor(7,0);     
+ // lcd.print(temp_byte);
+  SELECT_BYTE_1;
+  ADD_BYTE_AXIS_B; 
+//  lcd.setCursor(12,0);     
+//  lcd.print(temp_byte);
+  SELECT_BYTE_2;
+  ADD_BYTE_AXIS_B;
+//  lcd.setCursor(7,1);     
+//  lcd.print(temp_byte);
+  SELECT_BYTE_3_LSB;
+  ADD_BYTE_AXIS_B;
+//  lcd.setCursor(12,1);     
+//  lcd.print(temp_byte);
+//  lcd.setCursor(7,1);
+//  if (temp_byte & 0b10000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(8,1);
+//  if (temp_byte & 0b01000000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(9,1);
+//  if (temp_byte & 0b00100000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(10,1);
+//  if (temp_byte & 0b00010000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(12,1);
+//  if (temp_byte & 0b00001000) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(13,1);
+//  if (temp_byte & 0b00000100) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(14,1);
+//  if (temp_byte & 0b00000010) lcd.print("1");
+//    else lcd.print("0");
+//  lcd.setCursor(15,1);
+//  if (temp_byte & 0b00000001) lcd.print("1");
+//    else lcd.print("0");
+
+  
+  DISABLE_OUTPUT;  //allows latches to be updated
+  
+ // for (uint8_t i = 0; i < 21; i++) {   // see if can supply our own 2 phase signal
+ //   digitalWrite(phase_a, HIGH);
+ //   digitalWrite(phase_b, HIGH);
+ //   digitalWrite(HCTL_2032_D0, HIGH);
+ //   digitalWrite(HCTL_2032_D1, HIGH);
+ //   digitalWrite(phase_a, LOW );
+ //   digitalWrite(phase_b, LOW );
+ //   digitalWrite(HCTL_2032_D0, LOW );
+ //   digitalWrite(HCTL_2032_D1, LOW );
+ // }  
+  
+ // digitalWrite(LED, !digitalRead(LED));
+ // count_axis_A++;
+ // count_axis_B--;
+  
+// for (uint8_t i = 0; i < 47; i++)
+//  for (uint8_t j = 1; j <= i + 1; j++) {
+//    pinMode(i,OUTPUT);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, HIGH);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//     digitalWrite(i, LOW);
+//    
+//  }
+ 
+  // display counters
+  
+
+    
+  if (count_axis_A != count_axis_A_prev) {
+    count_axis_A_prev = count_axis_A;
+    lcd.setCursor(4,0);     
+    lcd.print("           ");             // clear display if new value
+  }  
+  
+  if (count_axis_B != count_axis_B_prev) {
+    count_axis_B_prev = count_axis_B;
+    lcd.setCursor(4,1);     
+    lcd.print("           ");             // clear display if new value
+  } 
+    
+  lcd.setCursor(4,0);             // move cursor to top line and 4 spaces over
+  lcd.print(count_axis_A);        // display current count/position
+  
+  lcd.setCursor(4,1);             // move cursor to bottom line and 4 spaces over
+  lcd.print(count_axis_B);        // display current count/position
+
+  // check buttons
+  
+  lcd_key = read_LCD_buttons();   // read the buttons
+
+  switch (lcd_key){               // depending on which button was pushed, we perform an action
+
+     case btnRIGHT:{              //  push button "RIGHT" 
+          break;                  //    NOOP
+     } 
+     case btnLEFT:{               //  push button "LEFT" and show the word on the screen
+          break;                  //    NOOP
+     }    
+     case btnUP:{                 //  push button "UP" and show the word on the screen
+          reset_axis_A();       //   clear Axis A counter  
+//          lcd.setCursor(0,0);
+//          lcd.print("UP        ");
+          break;
+     }
+     case btnDOWN:{               //  push button "DOWN" 
+          reset_axis_B();       //   clear Axis B counter    
+//          lcd.setCursor(0,0);
+//          lcd.print("DOWN      ");
+          break;
+     }
+     case btnSELECT:{             //  push button "SELECT"
+          if (debounce_counter == 0)
+            next_AXIS_codes();
+          debounce_counter = 200;  // keep resetting debounce_counter if button still pushed
+          break;                  //   scroll through axis codes
+     }
+     case btnNONE:{               //  decr debounce_counter
+       if (debounce_counter) debounce_counter--;
+          lcd.setCursor(10,1);
+          lcd.print(debounce_counter);
+          break;                  
+     }
+  }
+}
